@@ -1,26 +1,49 @@
+import { db } from '../db';
+import { photocardsTable, userPhotocardsTable } from '../db/schema';
 import { type AddToCollectionInput, type UserPhotocard } from '../schema';
+import { eq, and } from 'drizzle-orm';
 
 export async function addToCollection(input: AddToCollectionInput): Promise<UserPhotocard> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to add a photocard to a user's personal collection.
-    // This happens when a user uploads their own image of a photocard they own.
-    // The photocard_id should reference an existing photocard in the master catalog,
-    // while user_image_url is the user's own uploaded image of that card.
-    // 
-    // Should validate that:
-    // - The referenced photocard exists in the master catalog
-    // - The user hasn't already added this specific photocard to their collection
-    // - The uploaded image URL is accessible
-    
-    return {
-        id: 0, // Placeholder ID
+  try {
+    // Validate that the referenced photocard exists in the master catalog
+    const existingPhotocard = await db.select()
+      .from(photocardsTable)
+      .where(eq(photocardsTable.id, input.photocard_id))
+      .execute();
+
+    if (existingPhotocard.length === 0) {
+      throw new Error(`Photocard with ID ${input.photocard_id} not found in catalog`);
+    }
+
+    // Check if user has already added this photocard to their collection
+    const existingUserPhotocard = await db.select()
+      .from(userPhotocardsTable)
+      .where(and(
+        eq(userPhotocardsTable.user_id, input.user_id),
+        eq(userPhotocardsTable.photocard_id, input.photocard_id)
+      ))
+      .execute();
+
+    if (existingUserPhotocard.length > 0) {
+      throw new Error('This photocard is already in your collection');
+    }
+
+    // Insert the photocard into user's collection
+    const result = await db.insert(userPhotocardsTable)
+      .values({
         user_id: input.user_id,
         photocard_id: input.photocard_id,
         user_image_url: input.user_image_url,
         condition: input.condition || 'MINT',
         acquired_date: input.acquired_date || null,
-        notes: input.notes || null,
-        created_at: new Date(),
-        updated_at: new Date()
-    } as UserPhotocard;
+        notes: input.notes || null
+      })
+      .returning()
+      .execute();
+
+    return result[0];
+  } catch (error) {
+    console.error('Failed to add photocard to collection:', error);
+    throw error;
+  }
 }

@@ -1,27 +1,61 @@
+import { db } from '../db';
+import { userPhotocardsTable } from '../db/schema';
 import { type UpdateUserPhotocardInput, type UserPhotocard } from '../schema';
+import { eq, and } from 'drizzle-orm';
 
-export async function updateUserPhotocard(input: UpdateUserPhotocardInput): Promise<UserPhotocard> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to update user's collection entry details
-    // such as condition, acquired_date, and notes. This allows users to maintain
-    // detailed records of their collection.
-    // 
-    // Should validate:
-    // - The photocard exists in the user's collection
-    // - The user owns the photocard being updated
-    // - Only allow updating user-specific fields (condition, acquired_date, notes)
-    // 
-    // Should update the updated_at timestamp automatically
-    
-    return {
-        id: input.id,
-        user_id: input.user_id,
-        photocard_id: 0, // Placeholder - should be fetched from existing record
-        user_image_url: '', // Placeholder - should be preserved from existing record
-        condition: input.condition || 'MINT',
-        acquired_date: input.acquired_date || null,
-        notes: input.notes || null,
-        created_at: new Date(), // Placeholder - should be preserved from existing record
-        updated_at: new Date()
-    } as UserPhotocard;
-}
+export const updateUserPhotocard = async (input: UpdateUserPhotocardInput): Promise<UserPhotocard> => {
+  try {
+    // First, verify the record exists and belongs to the user
+    const existingRecord = await db.select()
+      .from(userPhotocardsTable)
+      .where(
+        and(
+          eq(userPhotocardsTable.id, input.id),
+          eq(userPhotocardsTable.user_id, input.user_id)
+        )
+      )
+      .execute();
+
+    if (existingRecord.length === 0) {
+      throw new Error('User photocard not found or access denied');
+    }
+
+    // Build update values only for provided fields
+    const updateValues: any = {
+      updated_at: new Date()
+    };
+
+    if (input.condition !== undefined) {
+      updateValues.condition = input.condition;
+    }
+
+    if (input.acquired_date !== undefined) {
+      updateValues.acquired_date = input.acquired_date;
+    }
+
+    if (input.notes !== undefined) {
+      updateValues.notes = input.notes;
+    }
+
+    // Update the record
+    const result = await db.update(userPhotocardsTable)
+      .set(updateValues)
+      .where(
+        and(
+          eq(userPhotocardsTable.id, input.id),
+          eq(userPhotocardsTable.user_id, input.user_id)
+        )
+      )
+      .returning()
+      .execute();
+
+    if (result.length === 0) {
+      throw new Error('Failed to update user photocard');
+    }
+
+    return result[0];
+  } catch (error) {
+    console.error('User photocard update failed:', error);
+    throw error;
+  }
+};

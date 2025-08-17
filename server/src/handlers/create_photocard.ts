@@ -1,14 +1,12 @@
+import { db } from '../db';
+import { photocardsTable } from '../db/schema';
 import { type CreatePhotocardInput, type Photocard } from '../schema';
 
-export async function createPhotocard(input: CreatePhotocardInput): Promise<Photocard> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to create a new photocard in the master catalog.
-    // This will primarily be used for ingesting data from the GitHub repository
-    // or when manually adding new photocards to the catalog.
-    // Should validate the input data and persist it to the photocards table.
-    
-    return {
-        id: 0, // Placeholder ID
+export const createPhotocard = async (input: CreatePhotocardInput): Promise<Photocard> => {
+  try {
+    // Insert photocard record
+    const result = await db.insert(photocardsTable)
+      .values({
         filename: input.filename,
         image_url: input.image_url,
         category: input.category,
@@ -17,8 +15,14 @@ export async function createPhotocard(input: CreatePhotocardInput): Promise<Phot
         album_name: input.album_name,
         store: input.store,
         version: input.version,
-        member: input.member,
-        created_at: new Date(),
-        updated_at: new Date()
-    } as Photocard;
-}
+        member: input.member
+      })
+      .returning()
+      .execute();
+
+    return result[0];
+  } catch (error) {
+    console.error('Photocard creation failed:', error);
+    throw error;
+  }
+};
